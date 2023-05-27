@@ -1,8 +1,6 @@
 from __future__ import print_function
 import os
 import openai
-import google.auth
-from googleapiclient.errors import HttpError
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -10,7 +8,6 @@ from google.auth.transport.requests import Request
 import os.path
 import base64
 from email.message import EmailMessage
-import json
 
 SCOPE_READ = ['https://www.googleapis.com/auth/gmail.readonly']
 SCOPE_WRITE = ['https://www.googleapis.com/auth/gmail.send']
@@ -46,20 +43,18 @@ def getUnreadMails():
 	if not messages:
 		print("You have no new messages.")
 	else:
-		message_count = 0
 		for message in messages:
 			msg = service.users().messages().get(userId='me', id=message['id']).execute()
-			message_count += 1
 			emailData = msg["payload"]["headers"]
 			for values in emailData:
 				name = values["name"]
 				if name == "From":
-					fromName = values["value"]
+					# extract content and append to a list
 					content_list.append(msg["snippet"])
 
 	return (content_list)
 
-# This function generates a TLDR of each unread email using the OpenAI API
+# This function generates a TLDR of each unread email by sending prompts to the OpenAI DaVinci Model
 def generateSummary(content):
 	response_list = []
 
@@ -99,19 +94,15 @@ def sendTLDRMail(response_list):
 
 	message = EmailMessage()
 
-	html = " "
-
-	for item in range (len(response_list)):
-		number = str(item + 1) 
-		html += number + response_list[item] + "\n"
-
-	''' 
-	html = "<ul>\n"
+	# HTML formatting for email
+	content = "<ol>\n"
 	for item in response_list:
-		html += f"<li>{item}</li>\n"
-	html += "</ul>" '''
+		content += f"<li>{item}</li>\n"
+	content += "</ol>"
 
-	message.set_content(html)
+
+	#message.set_type("text/html")
+	message.set_content(content, subtype='html')
 
 	message['To'] = 'anishka18v@gmail.com'
 	message['From'] = 'anishka18v@gmail.com'
@@ -123,6 +114,7 @@ def sendTLDRMail(response_list):
 		'raw': encoded_message
 	}
 
+	# execute email send
 	service.users().messages().send(userId="me", body=message).execute()
 
 
